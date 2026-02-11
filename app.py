@@ -572,7 +572,7 @@ else:
                 ax1.set_title('Baseline LSTM')
                 ax1.set_xlabel('Epoch')
                 ax1.set_ylabel('Loss')
-                ax. yang sia lakukan apa swtwlah
+                ax.ax2.legend(['Training Loss','Validation Loss'])
                 st.pyplot(fig1, use_container_width=True)
             
             with col2:
@@ -675,6 +675,7 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
 
 
