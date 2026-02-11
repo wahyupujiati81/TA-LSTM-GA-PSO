@@ -444,7 +444,7 @@ else:
             offspring = []
             while len(offspring) < POP_SIZE - len(elites):
                 p1, p2 = np.random.choice(elites, 2, replace=False)
-                child = crossover(p1, p2)
+                child = crossover(p1, p2, GA_LB, GA_UB)
                 child = mutate(child, GA_LB, GA_UB, MUTATION_RATE)
                 offspring.append(child)
             population = elites + offspring
@@ -566,17 +566,17 @@ else:
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                fig1, ax1 = plt.subplots()
+                fig1, ax1 = plt.subplots(figsize=(4,3))
                 ax1.plot(history_base.history['loss'])
                 ax1.plot(history_base.history['val_loss'])
                 ax1.set_title('Baseline LSTM')
                 ax1.set_xlabel('Epoch')
                 ax1.set_ylabel('Loss')
-                ax1.legend(['Training Loss','Validation Loss'])
+                ax. yang sia lakukan apa swtwlah
                 st.pyplot(fig1, use_container_width=True)
             
             with col2:
-                fig2, ax2 = plt.subplots()
+                fig1, ax1 = plt.subplots(figsize=(4,3))
                 ax2.plot(history_ga.history['loss'])
                 ax2.plot(history_ga.history['val_loss'])
                 ax2.set_title('GA-LSTM')
@@ -598,15 +598,17 @@ else:
             # =====================================================
             st.subheader("Actual vs Predicted Comparison")
     
-            fig4, ax4 = plt.subplots()
+            fig4, ax4 = plt.subplots(figsize=(6,3))
             ax4.plot(st.session_state.y_true_base, label="Actual", linewidth=2)
             ax4.plot(st.session_state.y_pred_base, label="Baseline")
             ax4.plot(st.session_state.y_pred_pso, label="PSO")
             ax4.plot(st.session_state.y_pred_ga, label="GA")
-            ax4.legend()
+            ax4.legend(fontsize=8)
+            ax4.set_title("Actual vs Predicted", fontsize=10)
+            st.pyplot(fig4)
+
             
             st.pyplot(fig4, use_container_width=True)
-
             # =====================================================
             # MAPE TABLE
             # =====================================================
@@ -673,5 +675,6 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
 
