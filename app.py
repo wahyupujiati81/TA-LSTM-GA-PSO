@@ -355,29 +355,42 @@ else:
 
         def fitness_ga(indiv, X_tr, y_tr, X_val, y_val, scaler_y):
             try:
+                set_seed(42)
+                tf.keras.backend.clear_session()
+        
                 units = int(np.round(indiv['units']))
                 batch = int(np.round(indiv['batch_size']))
                 dropout = float(indiv['dropout'])
                 lr = float(indiv['lr'])
-                epochs_fixed = 10
-                set_seed(42)
-                tf.keras.backend.clear_session()
-                model = build_lstm_model(
-                    input_shape=(X_tr.shape[1], X_tr.shape[2]),
+        
+                model = build_lstm_model_ga(
                     units=units,
                     dropout=dropout,
-                    lr=lr
+                    lr=lr,
+                    input_shape=(X_tr.shape[1], X_tr.shape[2])
                 )
-                model.fit(X_tr, y_tr, epochs=epochs_fixed, batch_size=batch, verbose=0)
+        
+                model.fit(
+                    X_tr, y_tr,
+                    epochs=10,  # ⚠ samakan dengan Streamlit
+                    batch_size=batch,
+                    verbose=0
+                )
+        
                 yv_pred = model.predict(X_val, verbose=0)
+        
                 yv_pred_orig = scaler_y.inverse_transform(yv_pred).flatten()
                 yv_true_orig = scaler_y.inverse_transform(y_val).flatten()
+        
                 mse_val = mean_squared_error(yv_true_orig, yv_pred_orig)
+        
                 tf.keras.backend.clear_session()
                 return mse_val
+        
             except:
                 tf.keras.backend.clear_session()
                 return 1e12
+
 
         def mutate(indiv, lb, ub, rate):
             child = copy.deepcopy(indiv)
@@ -671,3 +684,4 @@ else:
             })
     
             st.dataframe(forecast_df)
+
