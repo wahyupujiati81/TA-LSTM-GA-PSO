@@ -414,11 +414,10 @@ else:
         
             return child
 
-        child = crossover(p1, p2, GA_LB, GA_UB)
-        
+         
         val_frac_for_ga = 0.2
         n_tr_samples = X_train.shape[0]
-        n_tr_val = int(n_tr_samples * (1 - val_frac_for_pso))
+        n_tr_val = int(n_tr_samples * (1 - val_frac_for_ga))
         X_tr_for_ga = X_train[:n_tr_val]
         y_tr_for_ga = y_train[:n_tr_val]
         X_val_for_ga = X_train[n_tr_val:]
@@ -431,9 +430,10 @@ else:
 
         for gen in range(N_GENERATIONS):
             fitness_scores = [
-                fitness_ga(ind, X_tr_for_pso, y_tr_for_pso, X_val_for_pso, y_val_for_pso, scaler_y)
+                fitness_ga(ind, X_tr_for_ga, y_tr_for_ga, X_val_for_ga, y_val_for_ga, scaler_y)
                 for ind in population
             ]
+
             order = np.argsort(fitness_scores)
             population = [population[i] for i in order]
             if fitness_scores[order[0]] < best_mse_ga:
@@ -673,4 +673,5 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
