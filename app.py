@@ -391,13 +391,11 @@ else:
                 child['lr'] = float(10 ** np.random.uniform(np.log10(lb[3]), np.log10(ub[3])))
             return child
         
-        
-        def crossover(p1, p2, alpha=0.25):
-            """
-            Extended Intermediate Crossover
-            """
+        def crossover(p1, p2, lb, ub, alpha=0.25):
             child = {}
-            for k in p1.keys():
+            keys = list(p1.keys())
+        
+            for i, k in enumerate(keys):
                 val1 = p1[k]
                 val2 = p2[k]
         
@@ -406,21 +404,25 @@ else:
         
                 new_val = np.random.uniform(lower, upper)
         
+                # CLIPPING agar tidak keluar batas
+                new_val = np.clip(new_val, lb[i], ub[i])
+        
                 if k in ['units', 'batch_size']:
                     child[k] = int(np.round(new_val))
                 else:
                     child[k] = float(new_val)
         
             return child
-        
 
-        val_frac_for_pso = 0.2
+        child = crossover(p1, p2, GA_LB, GA_UB)
+        
+        val_frac_for_ga = 0.2
         n_tr_samples = X_train.shape[0]
         n_tr_val = int(n_tr_samples * (1 - val_frac_for_pso))
-        X_tr_for_pso = X_train[:n_tr_val]
-        y_tr_for_pso = y_train[:n_tr_val]
-        X_val_for_pso = X_train[n_tr_val:]
-        y_val_for_pso = y_train[n_tr_val:]
+        X_tr_for_ga = X_train[:n_tr_val]
+        y_tr_for_ga = y_train[:n_tr_val]
+        X_val_for_ga = X_train[n_tr_val:]
+        y_val_for_ga = y_train[n_tr_val:]
 
         population = [init_individual(GA_LB, GA_UB) for _ in range(POP_SIZE)]
         best_mse_ga = np.inf
@@ -671,3 +673,4 @@ else:
             })
     
             st.dataframe(forecast_df)
+
