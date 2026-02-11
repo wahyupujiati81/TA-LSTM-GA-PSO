@@ -508,8 +508,7 @@ else:
         status_text = st.empty()
     
         with st.spinner("Training models..."):
-    
-            # ================= BASELINE =================
+                # ================= BASELINE =================
             status_text.write("Training Baseline LSTM...")
             st.session_state.model_base, \
             st.session_state.history_base, \
@@ -577,9 +576,9 @@ else:
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                fig1, ax1 = plt.subplots()
-                ax1.plot(history_base.history['loss'])
-                ax1.plot(history_base.history['val_loss'])
+                fig1, ax1 = plt.subplots(figsize=(6, 4))  # Perkecil ukuran grafik
+                ax1.plot(history_base.history['loss'], color='lightgreen')  # Ubah warna abu-abu menjadi hijau muda
+                ax1.plot(history_base.history['val_loss'], color='lightblue')  # Ubah warna abu-abu menjadi biru muda
                 ax1.set_title('Baseline LSTM')
                 ax1.set_xlabel('Epoch')
                 ax1.set_ylabel('Loss')
@@ -587,18 +586,18 @@ else:
                 st.pyplot(fig1, use_container_width=True)
             
             with col2:
-                fig2, ax2 = plt.subplots()
-                ax2.plot(history_ga.history['loss'])
-                ax2.plot(history_ga.history['val_loss'])
+                fig2, ax2 = plt.subplots(figsize=(6, 4))  # Perkecil ukuran grafik
+                ax2.plot(history_ga.history['loss'], color='lightgreen')  # Ubah warna abu-abu menjadi hijau muda
+                ax2.plot(history_ga.history['val_loss'], color='lightblue')  # Ubah warna abu-abu menjadi biru muda
                 ax2.set_title('GA-LSTM')
                 ax2.set_xlabel('Epoch')
                 ax2.legend(['Training Loss','Validation Loss'])
                 st.pyplot(fig2, use_container_width=True)
             
             with col3:
-                fig3, ax3 = plt.subplots()
-                ax3.plot(history_pso.history['loss'])
-                ax3.plot(history_pso.history['val_loss'])
+                fig3, ax3 = plt.subplots(figsize=(6, 4))  # Perkecil ukuran grafik
+                ax3.plot(history_pso.history['loss'], color='lightgreen')  # Ubah warna abu-abu menjadi hijau muda
+                ax3.plot(history_pso.history['val_loss'], color='lightblue')  # Ubah warna abu-abu menjadi biru muda
                 ax3.set_title('PSO-LSTM')
                 ax3.set_xlabel('Epoch')
                 ax3.legend(['Training Loss','Validation Loss'])
@@ -609,11 +608,11 @@ else:
             # =====================================================
             st.subheader("Actual vs Predicted Comparison")
     
-            fig4, ax4 = plt.subplots()
-            ax4.plot(st.session_state.y_true_base, label="Actual", linewidth=2)
-            ax4.plot(st.session_state.y_pred_base, label="Baseline")
-            ax4.plot(st.session_state.y_pred_pso, label="PSO")
-            ax4.plot(st.session_state.y_pred_ga, label="GA")
+            fig4, ax4 = plt.subplots(figsize=(10, 6))  # Perkecil ukuran grafik
+            ax4.plot(st.session_state.y_true_base, label="Actual", linewidth=2, color='black')
+            ax4.plot(st.session_state.y_pred_base, label="Baseline", color='lightgreen')  # Ubah warna abu-abu menjadi hijau muda
+            ax4.plot(st.session_state.y_pred_pso, label="PSO", color='lightblue')  # Ubah warna abu-abu menjadi biru muda
+            ax4.plot(st.session_state.y_pred_ga, label="GA", color='skyblue')  # Tambahkan variasi biru
             ax4.legend()
             
             st.pyplot(fig4, use_container_width=True)
@@ -666,8 +665,8 @@ else:
             # ===============================
             # Grafik forecast
             # ===============================
-            fig, ax = plt.subplots()
-            ax.plot(future_preds, label="Forecast")
+            fig, ax = plt.subplots(figsize=(8, 5))  # Perkecil ukuran grafik
+            ax.plot(future_preds, label="Forecast", color='lightgreen')  # Ubah warna abu-abu menjadi hijau muda
             ax.set_title("Future Forecast")
             ax.legend()
             st.pyplot(fig, use_container_width=True)
@@ -684,4 +683,3 @@ else:
             })
     
             st.dataframe(forecast_df)
-
