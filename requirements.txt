@@ -1,0 +1,14 @@
+streamlit
+numpy
+pandas
+matplotlib
+scikit-learn
+tensorflow
+yfinance
+openpyxl
+xlrd
+pyswarms
+geneticalgorithm
+
+
+
