@@ -60,7 +60,6 @@ section = st.sidebar.radio(
 # =============================
 # LOAD DATA
 # =============================
-@st.cache_resource(ttl=3600)
 def load_data(ticker, start, end):
     df = yf.download(
         ticker,
@@ -176,7 +175,6 @@ else:
     # =============================
     # TRAIN MODELS (cached)
     # =============================
-    @st.cache_resource
     def train_baseline():
         set_seed(42)
         model_base = build_lstm_model(
@@ -203,7 +201,6 @@ else:
 
         return model_base, history_base, base_mape, base_smape, y_pred_base, y_true_base
 
-    @st.cache_resource
     def train_pso():
 
         PSO_N_PARTICLES = 10
@@ -337,7 +334,6 @@ else:
         return model_final, history_final, pso_mape, pso_smape, y_pred_final, y_true_final, history_gbest_cost
 
 
-    @st.cache_resource
     def train_ga():
         POP_SIZE = 10
         N_GENERATIONS = 10
@@ -612,10 +608,9 @@ else:
             ax4.plot(st.session_state.y_pred_ga, label="GA")
             ax4.legend(fontsize=8)
             ax4.set_title("Actual vs Predicted", fontsize=10)
-            st.pyplot(fig4)
-
-        
             st.pyplot(fig4, use_container_width=True)
+
+            
             # =====================================================
             # MAPE TABLE
             # =====================================================
@@ -632,8 +627,6 @@ else:
     
             st.dataframe(results)
     
-    
-
     # =========================================================
     # SECTION 3 : HASIL FORECAST
     # =========================================================
@@ -682,10 +675,4 @@ else:
             })
     
             st.dataframe(forecast_df)
-
-
-
-
-
-
 
