@@ -60,6 +60,7 @@ section = st.sidebar.radio(
 # =============================
 # LOAD DATA
 # =============================
+@st.cache_resource(ttl=3600)
 def load_data(ticker, start, end):
     df = yf.download(
         ticker,
@@ -175,6 +176,7 @@ else:
     # =============================
     # TRAIN MODELS (cached)
     # =============================
+    @st.cache_resource
     def train_baseline():
         set_seed(42)
         model_base = build_lstm_model(
@@ -201,8 +203,8 @@ else:
 
         return model_base, history_base, base_mape, base_smape, y_pred_base, y_true_base
 
+    @st.cache_resource
     def train_pso():
-        set_seed(42)
 
         PSO_N_PARTICLES = 10
         PSO_ITERS = 10
@@ -335,9 +337,8 @@ else:
         return model_final, history_final, pso_mape, pso_smape, y_pred_final, y_true_final, history_gbest_cost
 
 
+    @st.cache_resource
     def train_ga():
-        set_seed(42)
-        
         POP_SIZE = 10
         N_GENERATIONS = 10
         MUTATION_RATE = 0.1
@@ -389,38 +390,17 @@ else:
             if np.random.rand() < rate:
                 child['lr'] = float(10 ** np.random.uniform(np.log10(lb[3]), np.log10(ub[3])))
             return child
-        
-        def crossover(p1, p2, lb, ub, alpha=0.25):
-            child = {}
-            keys = list(p1.keys())
-        
-            for i, k in enumerate(keys):
-                val1 = p1[k]
-                val2 = p2[k]
-        
-                lower = min(val1, val2) - alpha * abs(val1 - val2)
-                upper = max(val1, val2) + alpha * abs(val1 - val2)
-        
-                new_val = np.random.uniform(lower, upper)
-        
-                # CLIPPING agar tidak keluar batas
-                new_val = np.clip(new_val, lb[i], ub[i])
-        
-                if k in ['units', 'batch_size']:
-                    child[k] = int(np.round(new_val))
-                else:
-                    child[k] = float(new_val)
-        
-            return child
 
-         
-        val_frac_for_ga = 0.2
+        def crossover(p1, p2):
+            return {k: p1[k] if np.random.rand() < 0.5 else p2[k] for k in p1}
+
+        val_frac_for_pso = 0.2
         n_tr_samples = X_train.shape[0]
-        n_tr_val = int(n_tr_samples * (1 - val_frac_for_ga))
-        X_tr_for_ga = X_train[:n_tr_val]
-        y_tr_for_ga = y_train[:n_tr_val]
-        X_val_for_ga = X_train[n_tr_val:]
-        y_val_for_ga = y_train[n_tr_val:]
+        n_tr_val = int(n_tr_samples * (1 - val_frac_for_pso))
+        X_tr_for_pso = X_train[:n_tr_val]
+        y_tr_for_pso = y_train[:n_tr_val]
+        X_val_for_pso = X_train[n_tr_val:]
+        y_val_for_pso = y_train[n_tr_val:]
 
         population = [init_individual(GA_LB, GA_UB) for _ in range(POP_SIZE)]
         best_mse_ga = np.inf
@@ -429,10 +409,9 @@ else:
 
         for gen in range(N_GENERATIONS):
             fitness_scores = [
-                fitness_ga(ind, X_tr_for_ga, y_tr_for_ga, X_val_for_ga, y_val_for_ga, scaler_y)
+                fitness_ga(ind, X_tr_for_pso, y_tr_for_pso, X_val_for_pso, y_val_for_pso, scaler_y)
                 for ind in population
             ]
-
             order = np.argsort(fitness_scores)
             population = [population[i] for i in order]
             if fitness_scores[order[0]] < best_mse_ga:
@@ -442,10 +421,8 @@ else:
             elites = population[:5]
             offspring = []
             while len(offspring) < POP_SIZE - len(elites):
-                idx = np.random.choice(len(elites), 2, replace=False)
-                p1 = elites[idx[0]]
-                p2 = elites[idx[1]]
-                child = crossover(p1, p2, GA_LB, GA_UB)
+                p1, p2 = np.random.choice(elites, 2, replace=False)
+                child = crossover(p1, p2)
                 child = mutate(child, GA_LB, GA_UB, MUTATION_RATE)
                 offspring.append(child)
             population = elites + offspring
@@ -566,54 +543,48 @@ else:
             # =====================================================
             col1, col2, col3 = st.columns(3)
 
-            # BASELINE
             with col1:
-                fig1, ax1 = plt.subplots(figsize=(4,3))
-                ax1.plot(history_base.history['loss'], label='Training Loss')
-                ax1.plot(history_base.history['val_loss'], label='Validation Loss')
+                fig1, ax1 = plt.subplots()
+                ax1.plot(history_base.history['loss'])
+                ax1.plot(history_base.history['val_loss'])
                 ax1.set_title('Baseline LSTM')
                 ax1.set_xlabel('Epoch')
                 ax1.set_ylabel('Loss')
-                ax1.legend()
-                st.pyplot(fig1)
+                ax1.legend(['Training Loss','Validation Loss'])
+                st.pyplot(fig1, use_container_width=True)
             
-            # GA
             with col2:
-                fig2, ax2 = plt.subplots(figsize=(4,3))
-                ax2.plot(history_ga.history['loss'], label='Training Loss')
-                ax2.plot(history_ga.history['val_loss'], label='Validation Loss')
+                fig2, ax2 = plt.subplots()
+                ax2.plot(history_ga.history['loss'])
+                ax2.plot(history_ga.history['val_loss'])
                 ax2.set_title('GA-LSTM')
                 ax2.set_xlabel('Epoch')
-                ax2.set_ylabel('Loss')
-                ax2.legend()
-                st.pyplot(fig2)
+                ax2.legend(['Training Loss','Validation Loss'])
+                st.pyplot(fig2, use_container_width=True)
             
-            # PSO
             with col3:
-                fig3, ax3 = plt.subplots(figsize=(4,3))
-                ax3.plot(history_pso.history['loss'], label='Training Loss')
-                ax3.plot(history_pso.history['val_loss'], label='Validation Loss')
+                fig3, ax3 = plt.subplots()
+                ax3.plot(history_pso.history['loss'])
+                ax3.plot(history_pso.history['val_loss'])
                 ax3.set_title('PSO-LSTM')
                 ax3.set_xlabel('Epoch')
-                ax3.set_ylabel('Loss')
-                ax3.legend()
-                st.pyplot(fig3)
-            
+                ax3.legend(['Training Loss','Validation Loss'])
+                st.pyplot(fig3, use_container_width=True)
+    
             # =====================================================
             # ACTUAL VS PREDICTED (3 MODEL)
             # =====================================================
             st.subheader("Actual vs Predicted Comparison")
     
-            fig4, ax4 = plt.subplots(figsize=(6,3))
+            fig4, ax4 = plt.subplots()
             ax4.plot(st.session_state.y_true_base, label="Actual", linewidth=2)
             ax4.plot(st.session_state.y_pred_base, label="Baseline")
             ax4.plot(st.session_state.y_pred_pso, label="PSO")
             ax4.plot(st.session_state.y_pred_ga, label="GA")
-            ax4.legend(fontsize=8)
-            ax4.set_title("Actual vs Predicted", fontsize=10)
+            ax4.legend()
+            
             st.pyplot(fig4, use_container_width=True)
 
-            
             # =====================================================
             # MAPE TABLE
             # =====================================================
@@ -630,6 +601,8 @@ else:
     
             st.dataframe(results)
     
+        
+
     # =========================================================
     # SECTION 3 : HASIL FORECAST
     # =========================================================
@@ -653,7 +626,7 @@ else:
                 future_preds.append(pred[0,0])
     
                 last_window = np.roll(last_window, -1)
-                last_window[-1] = pred[0,0]
+                last_window[-1] = pred
     
             future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1,1)).flatten()
     
@@ -678,5 +651,4 @@ else:
             })
     
             st.dataframe(forecast_df)
-
 
