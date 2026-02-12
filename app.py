@@ -1,7 +1,3 @@
-import os
-os.environ["TF_DETERMINISTIC_OPS"] = "1"
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -20,8 +16,6 @@ from tensorflow.keras.optimizers import Adam, RMSprop, Nadam
 from datetime import timedelta
 import copy
 from pyswarms.single.global_best import GlobalBestPSO
-
-tf.config.experimental.enable_op_determinism()
 
 # Set Seed
 np.random.seed(42)
@@ -236,6 +230,7 @@ else:
                     lr = float(p[1])
                     batch = int(np.round(p[2]))
                     dropout = float(p[3])
+                    epochs_fixed = 10
     
                     try:
                         set_seed(42)
@@ -248,7 +243,7 @@ else:
                             lr=lr
                         )
     
-                        model.fit(X_tr, y_tr, epochs=10, batch_size=batch, verbose=0)
+                        model.fit(X_tr, y_tr, epochs=epochs_fixed, batch_size=batch, verbose=0)
     
                         yv_pred = model.predict(X_va, verbose=0)
                         yv_pred_orig = scaler_y.inverse_transform(yv_pred).flatten()
@@ -258,12 +253,20 @@ else:
     
                     except:
                         costs[i] = 1e12
+
+                    K.clear_session()
     
                 return costs
             return obj_fn
     
         pso_obj = make_pso_obj(X_tr_for_pso, y_tr_for_pso, X_val_for_pso, y_val_for_pso, scaler_y)
-    
+
+        history_positions = []
+        history_velocity = []
+        history_costs = []
+        history_gbest_cost = []
+        history_gbest_pos = []
+        
         optimizer = GlobalBestPSO(
             n_particles=PSO_N_PARTICLES,
             dimensions=4,
@@ -271,14 +274,9 @@ else:
             bounds=PSO_BOUNDS
         )
     
-        # ===== INIT PBEST =====
-        optimizer.swarm.pbest_cost = np.full(PSO_N_PARTICLES, np.inf)
+        n_particles, dims = optimizer.swarm.position.shape
         optimizer.swarm.pbest_pos = optimizer.swarm.position.copy()
-        optimizer.swarm.best_cost = np.inf
-        optimizer.swarm.best_pos = optimizer.swarm.position[0].copy()
-    
-        history_gbest_cost = []
-        history_gbest_pos = []
+        optimizer.swarm.pbest_cost = np.full(n_particles, np.inf)
     
         for it in range(PSO_ITERS):
     
@@ -292,6 +290,9 @@ else:
             optimizer.swarm.best_cost = optimizer.swarm.pbest_cost[best_idx]
             optimizer.swarm.best_pos = optimizer.swarm.pbest_pos[best_idx]
     
+            history_positions.append(optimizer.swarm.position.copy())
+            history_velocity.append(optimizer.swarm.velocity.copy())
+            history_costs.append(costs.copy())
             history_gbest_cost.append(float(optimizer.swarm.best_cost))
             history_gbest_pos.append(optimizer.swarm.best_pos.copy())
     
@@ -310,14 +311,14 @@ else:
             optimizer.swarm.position = np.clip(optimizer.swarm.position, lb, ub)
     
         best_pos = history_gbest_pos[-1]
+        best_cost = history_gbest_cost[-1]
     
         best_units = int(np.round(best_pos[0]))
         best_lr = float(best_pos[1])
         best_batch = int(np.round(best_pos[2]))
         best_dropout = float(best_pos[3])
-    
-        set_seed(42)
-    
+        best_epochs = 100
+          
         model_final = build_lstm_model(
             input_shape=(X_train.shape[1], X_train.shape[2]),
             units=best_units,
@@ -367,8 +368,9 @@ else:
                 lr = float(indiv['lr'])
                 epochs_fixed = 10
                 set_seed(42)
-                tf.keras.backend.clear_session()
-                model = build_lstm_model(
+                K.clear_session()
+                
+                model = build_lstm_model_ga(
                     input_shape=(X_tr.shape[1], X_tr.shape[2]),
                     units=units,
                     dropout=dropout,
@@ -397,9 +399,24 @@ else:
                 child['lr'] = float(10 ** np.random.uniform(np.log10(lb[3]), np.log10(ub[3])))
             return child
 
-        def crossover(p1, p2):
-            return {k: p1[k] if np.random.rand() < 0.5 else p2[k] for k in p1}
-
+        def crossover(p1, p2, alpha=0.25):
+            child = {}
+            for k in p1.keys():
+                val1 = p1[k]
+                val2 = p2[k]
+        
+                lower = min(val1, val2) - alpha * abs(val1 - val2)
+                upper = max(val1, val2) + alpha * abs(val1 - val2)
+        
+                new_val = np.random.uniform(lower, upper)
+        
+                if k in ['units', 'batch_size']:
+                    child[k] = int(np.round(new_val))
+                else:
+                    child[k] = float(new_val)
+        
+            return child
+                
         val_frac_for_pso = 0.2
         n_tr_samples = X_train.shape[0]
         n_tr_val = int(n_tr_samples * (1 - val_frac_for_pso))
@@ -657,7 +674,6 @@ else:
             })
     
             st.dataframe(forecast_df)
-
 
 
 
