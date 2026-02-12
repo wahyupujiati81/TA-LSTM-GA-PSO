@@ -1,3 +1,7 @@
+import os
+os.environ["TF_DETERMINISTIC_OPS"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -651,4 +655,5 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
