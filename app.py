@@ -565,6 +565,7 @@ else:
             # =====================================================
             col1, col2, col3 = st.columns(3)
 
+            # ================= BASELINE =================
             with col1:
                 fig1, ax1 = plt.subplots(figsize=(4,3))
                 ax1.plot(history_base.history['loss'])
@@ -572,27 +573,31 @@ else:
                 ax1.set_title('Baseline LSTM')
                 ax1.set_xlabel('Epoch')
                 ax1.set_ylabel('Loss')
-                ax.ax2.legend(['Training Loss','Validation Loss'])
+                ax1.legend(['Training Loss','Validation Loss'])
                 st.pyplot(fig1, use_container_width=True)
             
+            # ================= GA =================
             with col2:
-                fig1, ax1 = plt.subplots(figsize=(4,3))
+                fig2, ax2 = plt.subplots(figsize=(4,3))
                 ax2.plot(history_ga.history['loss'])
                 ax2.plot(history_ga.history['val_loss'])
                 ax2.set_title('GA-LSTM')
                 ax2.set_xlabel('Epoch')
+                ax2.set_ylabel('Loss')
                 ax2.legend(['Training Loss','Validation Loss'])
                 st.pyplot(fig2, use_container_width=True)
             
+            # ================= PSO =================
             with col3:
-                fig3, ax3 = plt.subplots()
+                fig3, ax3 = plt.subplots(figsize=(4,3))
                 ax3.plot(history_pso.history['loss'])
                 ax3.plot(history_pso.history['val_loss'])
                 ax3.set_title('PSO-LSTM')
                 ax3.set_xlabel('Epoch')
+                ax3.set_ylabel('Loss')
                 ax3.legend(['Training Loss','Validation Loss'])
                 st.pyplot(fig3, use_container_width=True)
-    
+            
             # =====================================================
             # ACTUAL VS PREDICTED (3 MODEL)
             # =====================================================
@@ -607,7 +612,7 @@ else:
             ax4.set_title("Actual vs Predicted", fontsize=10)
             st.pyplot(fig4)
 
-            
+        
             st.pyplot(fig4, use_container_width=True)
             # =====================================================
             # MAPE TABLE
@@ -675,6 +680,7 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
 
 
