@@ -202,6 +202,7 @@ else:
         return model_base, history_base, base_mape, base_smape, y_pred_base, y_true_base
 
     def train_pso():
+        set_seed(42)
 
         PSO_N_PARTICLES = 10
         PSO_ITERS = 10
@@ -335,6 +336,8 @@ else:
 
 
     def train_ga():
+        set_seed(42)
+        
         POP_SIZE = 10
         N_GENERATIONS = 10
         MUTATION_RATE = 0.1
@@ -675,4 +678,5 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
