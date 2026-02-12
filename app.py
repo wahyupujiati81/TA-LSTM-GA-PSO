@@ -2,8 +2,6 @@ import os
 os.environ["TF_DETERMINISTIC_OPS"] = "1"
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-tf.config.experimental.enable_op_determinism()
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -22,6 +20,8 @@ from tensorflow.keras.optimizers import Adam, RMSprop, Nadam
 from datetime import timedelta
 import copy
 from pyswarms.single.global_best import GlobalBestPSO
+
+tf.config.experimental.enable_op_determinism()
 
 # Set Seed
 np.random.seed(42)
@@ -657,6 +657,7 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
 
 
