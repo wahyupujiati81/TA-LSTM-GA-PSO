@@ -234,7 +234,7 @@ else:
     
                     try:
                         set_seed(42)
-                        tf.keras.backend.clear_session()
+                        K.clear_session()
     
                         model = build_lstm_model(
                             input_shape=(X_tr.shape[1], X_tr.shape[2]),
@@ -331,7 +331,7 @@ else:
             epochs=100,
             batch_size=best_batch,
             validation_split=0.2,
-            verbose=0
+            verbose=1
         )
     
         y_pred_scaled_final = model_final.predict(X_test, verbose=0)
@@ -674,6 +674,5 @@ else:
             })
     
             st.dataframe(forecast_df)
-
 
 
