@@ -199,7 +199,6 @@ else:
         y_true_base = scaler_y.inverse_transform(y_test).flatten()
 
         base_mape = mape(y_true_base, y_pred_base)
-        base_smape = smape(y_true_base, y_pred_base)
 
         return model_base, history_base, base_mape, base_smape, y_pred_base, y_true_base
 
@@ -234,7 +233,7 @@ else:
     
                     try:
                         set_seed(42)
-                        K.clear_session()
+                        tf.keras.backend.clear_session()
     
                         model = build_lstm_model(
                             input_shape=(X_tr.shape[1], X_tr.shape[2]),
@@ -254,7 +253,7 @@ else:
                     except:
                         costs[i] = 1e12
 
-                    K.clear_session()
+                    tf.keras.backend.clear_session()
     
                 return costs
             return obj_fn
@@ -368,9 +367,9 @@ else:
                 lr = float(indiv['lr'])
                 epochs_fixed = 10
                 set_seed(42)
-                K.clear_session()
+                tf.keras.backend.clear_session()
                 
-                model = build_lstm_model_ga(
+                model = build_lstm_model(
                     input_shape=(X_tr.shape[1], X_tr.shape[2]),
                     units=units,
                     dropout=dropout,
@@ -654,48 +653,13 @@ else:
             future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1,1)).flatten()
     
             # ===============================
-            # Grafik forecast (Historical + Forecast)
+            # Grafik forecast
             # ===============================
-            
-            # Ambil data historis asli
-            historical_prices = df['Close'].values
-            historical_dates = df.index
-            
-            # Buat tanggal masa depan
-            last_date = historical_dates[-1]
-            future_dates = pd.date_range(
-                start=last_date + timedelta(days=1),
-                periods=future_days
-            )
-            
-            # Plot
-            fig, ax = plt.subplots(figsize=(10,5))
-            
-            # Historical
-            ax.plot(
-                historical_dates,
-                historical_prices,
-                color='blue',
-                label='Historical Close Price'
-            )
-            
-            # Forecast (garis merah putus-putus)
-            ax.plot(
-                future_dates,
-                future_preds,
-                color='red',
-                linestyle='--',
-                linewidth=2,
-                label=f'{future_days}-day LSTM Forecast'
-            )
-            
-            ax.set_title(f"{ticker} Stock Price: Historical vs {future_days}-day Forecast")
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Close Price")
+            fig, ax = plt.subplots()
+            ax.plot(future_preds, label="Forecast")
+            ax.set_title("Future Forecast")
             ax.legend()
-            
             st.pyplot(fig, use_container_width=True)
-
 
     
             # ===============================
@@ -709,6 +673,7 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
 
 
