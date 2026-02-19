@@ -654,14 +654,47 @@ else:
             future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1,1)).flatten()
     
             # ===============================
-            # Grafik forecast
+            # Grafik forecast (Historical + Forecast)
             # ===============================
-            fig, ax = plt.subplots()
-            ax.plot(future_preds, label="Forecast")
-            ax.set_title("Future Forecast")
+            
+            # Ambil data historis asli
+            historical_prices = df['Close'].values
+            historical_dates = df.index
+            
+            # Buat tanggal masa depan
+            last_date = historical_dates[-1]
+            future_dates = pd.date_range(
+                start=last_date + timedelta(days=1),
+                periods=future_days
+            )
+            
+            # Plot
+            fig, ax = plt.subplots(figsize=(10,5))
+            
+            # Historical
+            ax.plot(
+                historical_dates,
+                historical_prices,
+                color='blue',
+                label='Historical Close Price'
+            )
+            
+            # Forecast (garis merah putus-putus)
+            ax.plot(
+                future_dates,
+                future_preds,
+                color='red',
+                linestyle='--',
+                linewidth=2,
+                label=f'{future_days}-day LSTM Forecast'
+            )
+            
+            ax.set_title(f"{ticker} Stock Price: Historical vs {future_days}-day Forecast")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Close Price")
             ax.legend()
+            
             st.pyplot(fig, use_container_width=True)
-
     
             # ===============================
             # tabel forecast
@@ -674,5 +707,6 @@ else:
             })
     
             st.dataframe(forecast_df)
+
 
 
