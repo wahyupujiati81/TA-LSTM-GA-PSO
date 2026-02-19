@@ -1,3 +1,5 @@
+Akun 2
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -695,6 +697,8 @@ else:
             ax.legend()
             
             st.pyplot(fig, use_container_width=True)
+
+
     
             # ===============================
             # tabel forecast
