@@ -143,7 +143,7 @@ def set_seed(seed=42):
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
     tf.random.set_seed(seed)
-    random.seed(seed))
+    random.seed(seed)
     
 # =============================
 # BASELINE TRAIN
@@ -723,4 +723,5 @@ elif section == "Forecast":
         })
 
         st.dataframe(forecast_df)
+
 
