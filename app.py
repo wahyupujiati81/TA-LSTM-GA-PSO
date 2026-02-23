@@ -13,6 +13,8 @@ from tensorflow.keras import backend as K
 from datetime import timedelta
 import copy
 from pyswarms.single.global_best import GlobalBestPSO
+import os
+os.environ["TF_DETERMINISTIC_OPS"] = "1"
 
 # Set Seed
 np.random.seed(42)
@@ -137,9 +139,11 @@ def mape(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / (y_true + 1e-8))) * 100
 
 def set_seed(seed=42):
+    import os
+    os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
     tf.random.set_seed(seed)
-    random.seed(seed)
+    random.seed(seed))
     
 # =============================
 # BASELINE TRAIN
@@ -158,10 +162,10 @@ def train_baseline():
         epochs=100,
         batch_size=64,
         validation_split=0.2,
-        verbose=1
+        verbose=0
     )
 
-    y_pred_scaled = model.predict(X_test, verbose=1)
+    y_pred_scaled = model.predict(X_test, verbose=0)
     y_pred = scaler_y.inverse_transform(y_pred_scaled).flatten()
     y_true = scaler_y.inverse_transform(y_test).flatten()
 
@@ -206,7 +210,7 @@ def train_ga():
                 batch_size=batch,
                 verbose=0
             )
-            yv_pred = model.predict(X_val, verbose=1)
+            yv_pred = model.predict(X_val, verbose=0)
             yv_pred_orig = scaler_y.inverse_transform(yv_pred).flatten()
             yv_true_orig = scaler_y.inverse_transform(y_val).flatten()
         
@@ -296,7 +300,7 @@ def train_ga():
         offspring = []
         
         while len(offspring) < POP_SIZE - len(elites):
-            p1, p2 = random.sample(elites, 2)
+            p1, p2 = np.random.choice(elites, 2, replace=False)
             child = crossover(p1, p2)
             child = mutate(child, GA_LB, GA_UB, MUTATION_RATE)
             offspring.append(child)
@@ -320,7 +324,7 @@ def train_ga():
         epochs=100,
         batch_size=best_batch_ga,
         validation_split=0.2,
-        verbose=1
+        verbose=0
     )
 
     y_pred_scaled_ga = final_model_ga.predict(X_test)
@@ -394,7 +398,7 @@ def train_pso():
                         verbose=0
                     )
 
-                    yv_pred = model.predict(X_va, verbose=1)
+                    yv_pred = model.predict(X_va, verbose=0)
                     yv_pred_orig = scaler_y.inverse_transform(yv_pred).flatten()
                     yv_true_orig = scaler_y.inverse_transform(y_va).flatten()
 
@@ -493,13 +497,13 @@ def train_pso():
         epochs=100,
         batch_size=best_batch,
         validation_split=0.2,
-        verbose=1
+        verbose=0
     )
 
     # =========================
     # EVALUASI TEST
     # =========================
-    y_pred_scaled = model_final.predict(X_test, verbose=1)
+    y_pred_scaled = model_final.predict(X_test, verbose=0)
 
     y_pred = scaler_y.inverse_transform(y_pred_scaled).flatten()
     y_true = scaler_y.inverse_transform(y_test).flatten()
@@ -658,12 +662,12 @@ elif section == "Forecast":
         last_window = X_test[-1].copy()
         future_preds = []
 
-        model = st.session_state.model_base
-
+        model = st.session_state.model_pso  
+        
         for _ in range(future_days):
-            pred = model.predict(last_window.reshape(1,1,1), verbose=1)
+            pred = model.predict(last_window.reshape(1,1,1), verbose=0)
             future_preds.append(pred[0,0])
-            last_window = pred.reshape(1,1)
+            last_window = pred.reshape(1,1,1)
 
         future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1,1)).flatten()
         # ===============================
@@ -719,3 +723,4 @@ elif section == "Forecast":
         })
 
         st.dataframe(forecast_df)
+
