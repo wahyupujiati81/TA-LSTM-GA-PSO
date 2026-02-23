@@ -1,5 +1,6 @@
 import os
 import sys
+import gc
 import warnings
 
 # =============================
@@ -16,9 +17,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import random
-import gc
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
+from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
@@ -28,7 +28,7 @@ import copy
 from pyswarms.single.global_best import GlobalBestPSO
 
 # =============================
-# SET SEED FOR REPRODUCIBILITY
+# SET SEED
 # =============================
 def set_seed(seed=42):
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -39,14 +39,18 @@ def set_seed(seed=42):
 set_seed(42)
 
 # =============================
+# MEMORY CLEANUP FUNCTION
+# =============================
+def cleanup_memory():
+    """Force cleanup TensorFlow & Python memory"""
+    gc.collect()
+    K.clear_session()
+    tf.keras.backend.clear_session()
+
+# =============================
 # PAGE CONFIG
 # =============================
-st.set_page_config(
-    page_title="Stock Price Forecast",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(layout="wide")
 
 st.markdown("""
 <style>
@@ -68,35 +72,28 @@ def show_plot(fig, ratio=[1, 5, 1]):
     left, center, right = st.columns(ratio)
     with center:
         st.pyplot(fig, use_container_width=True)
+    plt.close(fig)
 
 def mape(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / (y_true + 1e-8))) * 100
 
-def cleanup_memory():
-    """Force cleanup memory"""
-    gc.collect()
-    K.clear_session()
-    tf.keras.backend.clear_session()
-
 # =============================
 # SIDEBAR
 # =============================
-st.sidebar.title("📊 Input Data Saham")
-st.sidebar.markdown("---")
+st.sidebar.title("Input Data Saham (Excel)")
 
 uploaded_file = st.sidebar.file_uploader(
     "Upload Excel (Kolom: Date & Close)",
-    type=["xlsx", "xls"],
-    help="Format: Kolom 'Date' dan 'Close'"
+    type=["xlsx"]
 )
 
 section = st.sidebar.radio(
-    "📌 Menu",
+    "Menu",
     ["Informasi Data", "Training & Evaluasi", "Forecast"]
 )
 
 # =============================
-# VALIDATE & LOAD DATA
+# LOAD DATA
 # =============================
 def load_excel(file):
     try:
@@ -104,30 +101,29 @@ def load_excel(file):
         df.columns = [c.strip() for c in df.columns]
 
         if "Date" not in df.columns or "Close" not in df.columns:
-            st.error("❌ File harus memiliki kolom: Date dan Close")
+            st.error("File harus memiliki kolom: Date dan Close")
             st.stop()
 
         df["Date"] = pd.to_datetime(df["Date"])
-        df = df.sort_values("Date").reset_index(drop=True)
+        df = df.sort_values("Date")
         df = df[["Date", "Close"]].dropna().reset_index(drop=True)
         return df
     except Exception as e:
-        st.error(f"❌ Error membaca file: {str(e)}")
+        st.error(f"Error membaca file: {str(e)}")
         st.stop()
 
 if uploaded_file is None:
-    st.warning("⚠️ Silakan upload file Excel terlebih dahulu.")
-    st.info("File harus memiliki 2 kolom: 'Date' dan 'Close'")
+    st.warning("Silakan upload file Excel terlebih dahulu.")
     st.stop()
 
 df = load_excel(uploaded_file)
 
 # =============================
-# DATA PREPROCESSING
+# DATA PREPROCESSING (CACHED)
 # =============================
 @st.cache_data
 def preprocess_data(_df):
-    """Preprocess data with caching"""
+    """Preprocess dengan caching"""
     feature_cols = ["Close"]
     target_col = "Close"
     window = 1
@@ -160,29 +156,24 @@ def preprocess_data(_df):
     X_test = X_seq_all[train_end_idx:]
     y_test = y_seq_all[train_end_idx:]
 
-    return X_train, y_train, X_test, y_test, scaler_y, n_train, window
+    return X_train, y_train, X_test, y_test, scaler_y
 
-X_train, y_train, X_test, y_test, scaler_y, n_train, window = preprocess_data(df)
+X_train, y_train, X_test, y_test, scaler_y = preprocess_data(df)
 
 # =============================
 # BUILD LSTM MODEL
 # =============================
 def build_lstm_model(input_shape, units, dropout, lr):
-    """Build LSTM model dengan memory cleanup"""
-    try:
-        K.clear_session()
-        model = Sequential()
-        model.add(LSTM(units=units, input_shape=input_shape, return_sequences=False))
-        if dropout is not None and dropout > 0:
-            model.add(Dropout(dropout))
-        model.add(Dense(1))
-        optimizer = Adam(learning_rate=lr)
-        model.compile(optimizer=optimizer, loss="mse", metrics=['mse'])
-        return model
-    except Exception as e:
-        st.error(f"Error building model: {e}")
-        cleanup_memory()
-        return None
+    """Build LSTM dengan memory cleanup"""
+    K.clear_session()
+    model = Sequential()
+    model.add(LSTM(units=units, input_shape=input_shape, return_sequences=False))
+    if dropout is not None and dropout > 0:
+        model.add(Dropout(dropout))
+    model.add(Dense(1))
+    optimizer = Adam(learning_rate=lr)
+    model.compile(optimizer=optimizer, loss="mse")
+    return model
 
 # =============================
 # BASELINE TRAINING
@@ -220,9 +211,9 @@ def train_baseline():
         cleanup_memory()
 
         return history, baseline_mape, y_pred, y_true
-    
+
     except Exception as e:
-        st.error(f"❌ Error Baseline: {str(e)}")
+        st.error(f"Error Baseline: {str(e)}")
         cleanup_memory()
         return None, None, None, None
 
@@ -284,6 +275,7 @@ def train_ga():
                 return mse_val
                 
             except Exception as e:
+                print(f"GA Eval Error: {e}")
                 cleanup_memory()
                 return 1e12
 
@@ -325,7 +317,7 @@ def train_ga():
             if dropout > 0:
                 model.add(Dropout(dropout))
             model.add(Dense(1, activation='linear'))
-            model.compile(optimizer=Adam(learning_rate=lr), loss='mse', metrics=['mse'])
+            model.compile(optimizer=Adam(learning_rate=lr), loss='mse')
             return model
             
         val_frac_for_ga = 0.2
@@ -401,9 +393,9 @@ def train_ga():
         cleanup_memory()
         
         return history_ga, ga_mape, y_pred_ga, y_true_ga, gbest_history_ga
-    
+
     except Exception as e:
-        st.error(f"❌ Error GA: {str(e)}")
+        st.error(f"Error GA: {str(e)}")
         cleanup_memory()
         return None, None, None, None, None
 
@@ -475,6 +467,7 @@ def train_pso():
                         cleanup_memory()
 
                     except Exception as e:
+                        print(f"PSO eval error: {e}")
                         costs[i] = 1e12
                         cleanup_memory()
 
@@ -569,9 +562,9 @@ def train_pso():
             y_true,
             np.array(history_gbest_cost)
         )
-    
+
     except Exception as e:
-        st.error(f"❌ Error PSO: {str(e)}")
+        st.error(f"Error PSO: {str(e)}")
         cleanup_memory()
         return None, None, None, None, None
 
@@ -586,294 +579,231 @@ if "model_pso" not in st.session_state:
 # =========================================================
 # BUTTON TRAIN MODEL
 # =========================================================
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🚀 Training Model")
+st.sidebar.markdown("### Training Model")
 
-if st.sidebar.button("▶️ Run Training Model", use_container_width=True):
-    with st.spinner("🔄 Training..."):
-        progress_bar = st.progress(0)
+if st.sidebar.button("Run Training Model"):
+    with st.spinner("Training Baseline, GA, PSO..."):
+        progress = st.progress(0)
         status = st.empty()
         
         try:
             # BASELINE
-            progress_bar.progress(15)
-            status.info("⏳ Training Baseline LSTM...")
+            progress.progress(15)
+            status.info("Training Baseline...")
             (st.session_state.history_base,
              st.session_state.base_mape,
              st.session_state.y_pred_base,
              st.session_state.y_true_base) = train_baseline()
             status.success("✓ Baseline selesai")
-            progress_bar.progress(35)
+            progress.progress(35)
             
             # GA
-            progress_bar.progress(50)
-            status.info("⏳ Training GA-LSTM...")
+            progress.progress(50)
+            status.info("Training GA...")
             (st.session_state.history_ga,
              st.session_state.ga_mape,
              st.session_state.y_pred_ga,
              st.session_state.y_true_ga,
              st.session_state.gbest_ga) = train_ga()
             status.success("✓ GA selesai")
-            progress_bar.progress(70)
+            progress.progress(70)
             
             # PSO
-            progress_bar.progress(80)
-            status.info("⏳ Training PSO-LSTM...")
+            progress.progress(80)
+            status.info("Training PSO...")
             (st.session_state.history_pso,
              st.session_state.pso_mape,
              st.session_state.y_pred_pso,
              st.session_state.y_true_pso,
              st.session_state.gbest_pso) = train_pso()
             status.success("✓ PSO selesai")
-            progress_bar.progress(100)
+            progress.progress(100)
 
             st.session_state.trained = True
             status.empty()
-            progress_bar.empty()
+            progress.empty()
             
-            st.success("✅ Training semua model selesai!")
+            st.success("✅ Training selesai!")
             st.balloons()
             
             cleanup_memory()
-            
+
         except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+            st.error(f"Error: {str(e)}")
             cleanup_memory()
 
 # =============================
 # SECTION 1 : INFORMASI DATA
 # =============================
 if section == "Informasi Data":
-    st.subheader("📊 Grafik Harga Saham")
-    
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(df["Date"], df["Close"], linewidth=2, color='#1f77b4')
-    ax.set_title("Pergerakan Harga Saham", fontsize=14, fontweight='bold')
+    st.subheader("Grafik Harga Saham")
+    fig, ax = plt.subplots(figsize=(7, 3))
+    ax.plot(df["Date"], df["Close"])
+    ax.set_title("Pergerakan Harga Saham")
     ax.set_xlabel("Date")
-    ax.set_ylabel("Close Price")
-    ax.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    st.pyplot(fig, use_container_width=True)
-    plt.close(fig)
+    ax.set_ylabel("Close")
+    show_plot(fig)
     
-    st.subheader("📈 Statistik Deskriptif")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    stats = df["Close"].describe()
-    
-    with col1:
-        st.metric("Count", f"{int(stats['count'])}")
-    with col2:
-        st.metric("Mean", f"Rp {stats['mean']:,.0f}")
-    with col3:
-        st.metric("Min", f"Rp {stats['min']:,.0f}")
-    with col4:
-        st.metric("Max", f"Rp {stats['max']:,.0f}")
-    
-    st.dataframe(df.describe().to_frame(), use_container_width=True)
+    st.subheader("Statistik Deskriptif")
+    left, center, right = st.columns([1, 5, 1])
+    with center:
+        st.dataframe(df["Close"].describe().to_frame())
 
 # =============================
 # SECTION 2 : TRAINING & EVALUASI
 # =============================
 elif section == "Training & Evaluasi":
     if not st.session_state.trained:
-        st.warning("⚠️ Klik 'Run Training Model' di sidebar untuk memulai training.")
-        st.info("Training akan melatih 3 model: Baseline, GA-LSTM, dan PSO-LSTM")
+        st.warning("Klik 'Run Training Model' terlebih dahulu.")
     else:
         history_base = st.session_state.history_base
         history_pso = st.session_state.history_pso
         history_ga = st.session_state.history_ga
 
-        st.subheader("📉 Training vs Validation Loss")
+        st.subheader("Training vs Validation Loss")
         
         col1, col2, col3 = st.columns(3)
 
         # BASELINE
         with col1:
-            fig1, ax1 = plt.subplots(figsize=(4, 3))
-            ax1.plot(history_base.history['loss'], label='Train', linewidth=2)
-            ax1.plot(history_base.history['val_loss'], label='Val', linewidth=2)
-            ax1.set_title('Baseline LSTM', fontweight='bold')
-            ax1.set_xlabel('Epoch')
-            ax1.set_ylabel('Loss')
-            ax1.legend(fontsize=9)
-            ax1.grid(True, alpha=0.3)
-            st.pyplot(fig1, use_container_width=True)
+            fig1, ax1 = plt.subplots(figsize=(3, 2))
+            ax1.plot(history_base.history['loss'], label='Train')
+            ax1.plot(history_base.history['val_loss'], label='Val')
+            ax1.set_title('Baseline LSTM')
+            ax1.legend(fontsize=8)
+            st.pyplot(fig1)
             plt.close(fig1)
         
         # GA
         with col2:
-            fig2, ax2 = plt.subplots(figsize=(4, 3))
-            ax2.plot(history_ga.history['loss'], label='Train', linewidth=2)
-            ax2.plot(history_ga.history['val_loss'], label='Val', linewidth=2)
-            ax2.set_title('GA-LSTM', fontweight='bold')
-            ax2.set_xlabel('Epoch')
-            ax2.set_ylabel('Loss')
-            ax2.legend(fontsize=9)
-            ax2.grid(True, alpha=0.3)
-            st.pyplot(fig2, use_container_width=True)
+            fig2, ax2 = plt.subplots(figsize=(3, 2))
+            ax2.plot(history_ga.history['loss'], label='Train')
+            ax2.plot(history_ga.history['val_loss'], label='Val')
+            ax2.set_title('GA-LSTM')
+            ax2.legend(fontsize=8)
+            st.pyplot(fig2)
             plt.close(fig2)
     
         # PSO
         with col3:
-            fig3, ax3 = plt.subplots(figsize=(4, 3))
-            ax3.plot(history_pso.history['loss'], label='Train', linewidth=2)
-            ax3.plot(history_pso.history['val_loss'], label='Val', linewidth=2)
-            ax3.set_title('PSO-LSTM', fontweight='bold')
-            ax3.set_xlabel('Epoch')
-            ax3.set_ylabel('Loss')
-            ax3.legend(fontsize=9)
-            ax3.grid(True, alpha=0.3)
-            st.pyplot(fig3, use_container_width=True)
+            fig3, ax3 = plt.subplots(figsize=(3, 2))
+            ax3.plot(history_pso.history['loss'], label='Train')
+            ax3.plot(history_pso.history['val_loss'], label='Val')
+            ax3.set_title('PSO-LSTM')
+            ax3.legend(fontsize=8)
+            st.pyplot(fig3)
             plt.close(fig3)
         
         # ACTUAL VS PREDICTED
-        st.subheader("🎯 Actual vs Predicted Comparison")
+        st.subheader("Actual vs Predicted Comparison")
 
-        fig4, ax4 = plt.subplots(figsize=(10, 4))
-        ax4.plot(st.session_state.y_true_base, label="Actual", linewidth=2.5, color='black')
-        ax4.plot(st.session_state.y_pred_base, label="Baseline", linewidth=1.5, alpha=0.8)
-        ax4.plot(st.session_state.y_pred_pso, label="PSO", linewidth=1.5, alpha=0.8)
-        ax4.plot(st.session_state.y_pred_ga, label="GA", linewidth=1.5, alpha=0.8)
-        ax4.set_title("Actual vs Predicted (Test Data)", fontsize=12, fontweight='bold')
-        ax4.set_xlabel('Time Steps')
-        ax4.set_ylabel('Close Price')
-        ax4.legend(fontsize=10)
-        ax4.grid(True, alpha=0.3)
-        plt.tight_layout()
-        st.pyplot(fig4, use_container_width=True)
-        plt.close(fig4)
+        fig4, ax4 = plt.subplots(figsize=(6, 3))
+        ax4.plot(st.session_state.y_true_base, label="Actual", linewidth=2)
+        ax4.plot(st.session_state.y_pred_base, label="Baseline")
+        ax4.plot(st.session_state.y_pred_pso, label="PSO")
+        ax4.plot(st.session_state.y_pred_ga, label="GA")
+        ax4.legend(fontsize=8)
+        ax4.set_title("Actual vs Predicted", fontsize=10)
+        
+        show_plot(fig4)
 
         # MAPE TABLE
-        st.subheader("📊 MAPE Comparison")
+        st.subheader("MAPE Comparison")
 
         results = pd.DataFrame({
             "Model": ["Baseline", "PSO", "GA"],
-            "MAPE (%)": [
+            "MAPE": [
                 f"{st.session_state.base_mape:.4f}",
                 f"{st.session_state.pso_mape:.4f}",
                 f"{st.session_state.ga_mape:.4f}"
             ]
         })
 
-        st.dataframe(results, use_container_width=True)
+        st.dataframe(results)
         
-        # Best model info
+        # Best model
         mape_values = {
             "Baseline": st.session_state.base_mape,
             "PSO": st.session_state.pso_mape,
             "GA": st.session_state.ga_mape
         }
         best_model = min(mape_values, key=mape_values.get)
-        st.success(f"🏆 Model Terbaik: **{best_model}** dengan MAPE = **{mape_values[best_model]:.4f}%**")
+        st.success(f"🏆 Model Terbaik: {best_model} (MAPE: {mape_values[best_model]:.4f}%)")
 
 # =========================================================
 # SECTION 3 : FORECAST
 # =========================================================
 elif section == "Forecast":
     if not st.session_state.trained:
-        st.warning("⚠️ Klik 'Run Training Model' di sidebar terlebih dahulu.")
+        st.warning("Klik 'Run Training Model' terlebih dahulu.")
     else:
-        st.subheader("🔮 Forecast Harga Saham (PSO-LSTM)")
+        future_days = st.slider("Forecast (hari)", 5, 30, 7)
+
+        last_window = X_test[-1].copy()
+        future_preds = []
+
+        model = st.session_state.model_pso
         
-        future_days = st.slider("📅 Berapa hari ke depan?", 5, 30, 7)
+        if model is not None:
+            for _ in range(future_days):
+                pred = model.predict(last_window.reshape(1, 1, 1), verbose=0)
+                future_preds.append(pred[0, 0])
+                last_window = pred.reshape(1, 1, 1)
 
-        try:
-            last_window = X_test[-1].copy()
-            future_preds = []
-
-            model = st.session_state.model_pso
+            future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1, 1)).flatten()
             
-            if model is not None:
-                for _ in range(future_days):
-                    pred = model.predict(last_window.reshape(1, 1, 1), verbose=0)
-                    future_preds.append(pred[0, 0])
-                    last_window = pred.reshape(1, 1, 1)
+            # BUAT TANGGAL MASA DEPAN
+            future_dates = pd.bdate_range(
+                start=df["Date"].iloc[-1],
+                periods=future_days + 1
+            )[1:]
 
-                future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1, 1)).flatten()
-                
-                # BUAT TANGGAL MASA DEPAN
-                future_dates = pd.bdate_range(
-                    start=df["Date"].iloc[-1],
-                    periods=future_days + 1
-                )[1:]
+            # GRAFIK FORECAST
+            st.subheader("Forecast Harga Saham")
 
-                # GRAFIK FORECAST
-                fig, ax = plt.subplots(figsize=(12, 5))
+            fig, ax = plt.subplots(figsize=(9, 3))
 
-                # Data historis
-                ax.plot(df["Date"], df["Close"], label="Data Historis", linewidth=2.5, color='#1f77b4')
-                
-                # Sambungan garis terakhir
-                ax.plot(
-                    [df["Date"].iloc[-1], future_dates[0]],
-                    [df["Close"].iloc[-1], future_preds[0]],
-                    linestyle="--",
-                    color="orange",
-                    linewidth=2
-                )
-                
-                # Forecast
-                ax.plot(
-                    future_dates,
-                    future_preds,
-                    label="Forecast",
-                    linestyle="--",
-                    marker="o",
-                    color="red",
-                    linewidth=2.5,
-                    markersize=6
-                )
-                
-                ax.set_title("Pergerakan Harga Saham + Forecast (PSO-LSTM)", fontsize=14, fontweight='bold')
-                ax.set_xlabel("Date")
-                ax.set_ylabel("Close Price")
-                ax.legend(fontsize=11)
-                ax.grid(True, alpha=0.3)
-                plt.xticks(rotation=45)
-                plt.tight_layout()
-                st.pyplot(fig, use_container_width=True)
-                plt.close(fig)
+            # data historis
+            ax.plot(df["Date"], df["Close"], label="Data Historis", linewidth=2)
+            
+            # sambungan garis terakhir
+            ax.plot(
+                [df["Date"].iloc[-1], future_dates[0]],
+                [df["Close"].iloc[-1], future_preds[0]],
+                linestyle="--",
+                color="orange"
+            )
+            
+            # forecast
+            ax.plot(
+                future_dates,
+                future_preds,
+                label="Forecast",
+                linestyle="--",
+                marker="o",
+                color="red"
+            )
+            
+            ax.legend()
+            ax.set_title("Pergerakan Harga Saham + Forecast")
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Close Price")
+            
+            st.pyplot(fig)
+            plt.close(fig)
 
-                # TABEL FORECAST
-                st.subheader("📋 Tabel Forecast")
-                
-                future_dates_table = pd.date_range(
-                    start=df["Date"].iloc[-1] + timedelta(days=1),
-                    periods=future_days
-                )
+            # TABEL FORECAST
+            future_dates_table = pd.date_range(
+                start=df["Date"].iloc[-1] + timedelta(days=1),
+                periods=future_days
+            )
 
-                forecast_df = pd.DataFrame({
-                    "Tanggal": future_dates_table.strftime('%Y-%m-%d'),
-                    "Forecast (Rp)": [f"{price:,.2f}" for price in future_preds]
-                })
+            forecast_df = pd.DataFrame({
+                "Date": future_dates_table,
+                "Forecast": [f"Rp {price:,.0f}" for price in future_preds]
+            })
 
-                st.dataframe(forecast_df, use_container_width=True)
-                
-                # Summary statistics
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Min Forecast", f"Rp {future_preds.min():,.0f}")
-                with col2:
-                    st.metric("Max Forecast", f"Rp {future_preds.max():,.0f}")
-                with col3:
-                    st.metric("Rata-rata", f"Rp {future_preds.mean():,.0f}")
-            else:
-                st.error("❌ Model PSO tidak tersedia.")
-        
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
-
-# =============================
-# FOOTER
-# =============================
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 📌 Info Aplikasi")
-st.sidebar.info(
-    "**Stock Price Forecast v2.0**\n\n"
-    "✅ Memory Optimized\n"
-    "✅ No Inotify Errors\n"
-    "✅ 3 Model Comparison\n\n"
-    "Made with ❤️"
-)
+            st.subheader("Tabel Forecast")
+            st.dataframe(forecast_df)
+        else:
+            st.error("Model tidak tersedia")
