@@ -226,8 +226,8 @@ def train_ga():
         set_seed(42)
         cleanup_memory()
         
-        POP_SIZE = 5
-        N_GENERATIONS = 5
+        POP_SIZE = 10
+        N_GENERATIONS = 10
         MUTATION_RATE = 0.3
         GA_LB = [16, 8, 0.1, 0.0001]
         GA_UB = [160, 256, 0.8, 0.001]
@@ -408,8 +408,8 @@ def train_pso():
         set_seed(42)
         cleanup_memory()
 
-        PSO_N_PARTICLES = 5
-        PSO_ITERS = 5
+        PSO_N_PARTICLES = 10
+        PSO_ITERS = 10
         PSO_OPTIONS = {'c1': 1.5, 'c2': 1.5, 'w': 0.5}
 
         PSO_BOUNDS = (
@@ -807,3 +807,4 @@ elif section == "Forecast":
             st.dataframe(forecast_df)
         else:
             st.error("Model tidak tersedia")
+
