@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import random
+import gc
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 from tensorflow.keras.models import Sequential
@@ -14,37 +15,45 @@ from datetime import timedelta
 import copy
 from pyswarms.single.global_best import GlobalBestPSO
 import os
+
 os.environ["TF_DETERMINISTIC_OPS"] = "1"
 
-# Set Seed
-np.random.seed(42)
-tf.random.set_seed(42)
-random.seed(42)
+# =============================
+# SET SEED
+# =============================
+def set_seed(seed=42):
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+    random.seed(seed)
 
+set_seed(42)
+
+# =============================
+# PAGE CONFIG
+# =============================
 st.set_page_config(layout="wide")
 
 st.markdown("""
 <style>
-
 /* Padding halaman */
 .block-container {
     padding-top: 2.5rem;
     padding-bottom: 1rem;
-    max-width: 1000px;   /* batasi lebar konten */
+    max-width: 1000px;
 }
 
 /* kecilkan font global */
 html {
     font-size: 14px;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
 # =============================
 # FUNGSI PLOT KECIL CENTER
 # =============================
-def show_plot(fig, ratio=[1,5,1]):
+def show_plot(fig, ratio=[1, 5, 1]):
     left, center, right = st.columns(ratio)
     with center:
         st.pyplot(fig)
@@ -84,10 +93,11 @@ if uploaded_file is None:
     st.warning("Silakan upload file Excel terlebih dahulu.")
     st.stop()
 
-# Load data
+# =============================
+# LOAD DATA & PREPROCESSING
+# =============================
 df = load_excel(uploaded_file)
 
-# Preprocessing
 feature_cols = ["Close"]
 target_col = "Close"
 window = 1
@@ -122,7 +132,9 @@ y_train = y_seq_all[:train_end_idx]
 X_test = X_seq_all[train_end_idx:]
 y_test = y_seq_all[train_end_idx:]
 
-# Pemodelan
+# =============================
+# FUNGSI BUILD MODEL
+# =============================
 def build_lstm_model(input_shape, units, dropout, lr):
     K.clear_session()
     model = Sequential()
@@ -132,24 +144,18 @@ def build_lstm_model(input_shape, units, dropout, lr):
     model.add(Dense(1))
     optimizer = Adam(learning_rate=lr)
     model.compile(optimizer=optimizer, loss="mse")
+    return model
 
-    return model  
-        
 def mape(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / (y_true + 1e-8))) * 100
 
-def set_seed(seed=42):
-    import os
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    random.seed(seed)
-    
 # =============================
 # BASELINE TRAIN
 # =============================
 def train_baseline():
     set_seed(42)
+    K.clear_session()
+    
     model = build_lstm_model(
         input_shape=(X_train.shape[1], X_train.shape[2]),
         units=16,
@@ -169,13 +175,24 @@ def train_baseline():
     y_pred = scaler_y.inverse_transform(y_pred_scaled).flatten()
     y_true = scaler_y.inverse_transform(y_test).flatten()
 
-    return model, history, mape(y_true, y_pred), y_pred, y_true
+    baseline_mape = mape(y_true, y_pred)
     
+    # Clear model from memory
+    del model
+    K.clear_session()
+    gc.collect()
+
+    return history, baseline_mape, y_pred, y_true
+
+# =============================
+# GA TRAIN
+# =============================
 def train_ga():
     set_seed(42)
-        
-    POP_SIZE = 10
-    N_GENERATIONS = 10
+    K.clear_session()
+    
+    POP_SIZE = 5
+    N_GENERATIONS = 5
     MUTATION_RATE = 0.3
     GA_LB = [16, 8, 0.1, 0.0001]
     GA_UB = [160, 256, 0.8, 0.001]
@@ -186,7 +203,7 @@ def train_ga():
             'batch_size': int(np.random.randint(lb[1], ub[1] + 1)),
             'dropout': float(np.random.uniform(lb[2], ub[2])),
             'lr': float(10 ** np.random.uniform(np.log10(lb[3]), np.log10(ub[3])))
-          }
+        }
 
     def fitness_ga(indiv, X_tr, y_tr, X_val, y_val, scaler_y):
         try:
@@ -198,7 +215,7 @@ def train_ga():
             set_seed(42)
             K.clear_session()
             
-            model = build_lstm_model_ga(
+            model = build_lstm_model(
                 units=units,
                 dropout=dropout,
                 lr=lr,
@@ -214,14 +231,19 @@ def train_ga():
             yv_pred_orig = scaler_y.inverse_transform(yv_pred).flatten()
             yv_true_orig = scaler_y.inverse_transform(y_val).flatten()
         
-            # Optimasi berdasarkan MSE
             mse_val = mean_squared_error(yv_true_orig, yv_pred_orig)
-            tf.keras.backend.clear_session()
+            
+            # Clear model
+            del model
+            K.clear_session()
+            gc.collect()
+            
             return mse_val
             
         except Exception as e:
             print(f"GA Eval Error: {e}")
-            tf.keras.backend.clear_session()
+            K.clear_session()
+            gc.collect()
             return 1e12
 
     def crossover(p1, p2, alpha=0.25):
@@ -254,6 +276,16 @@ def train_ga():
         if np.random.rand() < rate:
             child['lr'] = float(10 ** np.random.uniform(np.log10(lb[3]), np.log10(ub[3])))
         return child
+    
+    def build_lstm_model_ga(units, dropout, lr, input_shape):
+        K.clear_session()
+        model = Sequential()
+        model.add(LSTM(units=units, input_shape=input_shape))
+        if dropout > 0:
+            model.add(Dropout(dropout))
+        model.add(Dense(1, activation='linear'))
+        model.compile(optimizer=Adam(learning_rate=lr), loss='mse')
+        return model
         
     val_frac_for_ga = 0.2
     n_tr_samples_ga = X_train.shape[0]
@@ -264,18 +296,6 @@ def train_ga():
     X_val_for_ga = X_train[n_tr_val_ga:]
     y_val_for_ga = y_train[n_tr_val_ga:]
 
-    # Membangun Model LSTM-GA
-    def build_lstm_model_ga(units, dropout, lr, input_shape):
-    
-        tf.keras.backend.clear_session()
-        model = Sequential()
-        model.add(LSTM(units=units, input_shape=input_shape))
-        if dropout > 0:
-            model.add(Dropout(dropout))
-        model.add(Dense(1, activation='linear'))
-        model.compile(optimizer=Adam(learning_rate=lr), loss='mse')
-        return model
-        
     population = [init_individual(GA_LB, GA_UB) for _ in range(POP_SIZE)]
     best_mse_ga = np.inf
     best_params_ga = None
@@ -296,12 +316,12 @@ def train_ga():
         
         gbest_history_ga.append(best_mse_ga)
         
-        elites = population[:5]
+        elites = population[:3]
         offspring = []
         
         while len(offspring) < POP_SIZE - len(elites):
-            p1, p2 = np.random.choice(elites, 2, replace=False)
-            child = crossover(p1, p2)
+            p1, p2 = np.random.choice(range(len(elites)), 2, replace=False)
+            child = crossover(elites[p1], elites[p2])
             child = mutate(child, GA_LB, GA_UB, MUTATION_RATE)
             offspring.append(child)
         
@@ -313,6 +333,8 @@ def train_ga():
     best_dropout_ga = float(best_params_ga['dropout'])
 
     set_seed(42)
+    K.clear_session()
+    
     final_model_ga = build_lstm_model_ga(
         units=best_units_ga,
         dropout=best_dropout_ga,
@@ -327,24 +349,28 @@ def train_ga():
         verbose=0
     )
 
-    y_pred_scaled_ga = final_model_ga.predict(X_test)
+    y_pred_scaled_ga = final_model_ga.predict(X_test, verbose=0)
     y_pred_ga = scaler_y.inverse_transform(y_pred_scaled_ga).flatten()
     y_true_ga = scaler_y.inverse_transform(y_test).flatten()
 
     ga_mape = mape(y_true_ga, y_pred_ga)
-    return final_model_ga, history_ga, ga_mape, y_pred_ga, y_true_ga, gbest_history_ga
     
+    # Clear model
+    del final_model_ga
+    K.clear_session()
+    gc.collect()
+    
+    return history_ga, ga_mape, y_pred_ga, y_true_ga, gbest_history_ga
 
+# =============================
+# PSO TRAIN
+# =============================
 def train_pso():
-
     set_seed(42)
     K.clear_session()
 
-    # =========================
-    # KONFIGURASI PSO
-    # =========================
-    PSO_N_PARTICLES = 10
-    PSO_ITERS = 10
+    PSO_N_PARTICLES = 5
+    PSO_ITERS = 5
     PSO_OPTIONS = {'c1': 1.5, 'c2': 1.5, 'w': 0.5}
 
     PSO_BOUNDS = (
@@ -352,9 +378,6 @@ def train_pso():
         np.array([160, 0.001, 256, 0.8])
     )
 
-    # =========================
-    # SPLIT DATA UNTUK PSO
-    # =========================
     val_frac_for_pso = 0.2
     n_tr_samples = X_train.shape[0]
     n_tr_val = int(n_tr_samples * (1 - val_frac_for_pso))
@@ -364,16 +387,12 @@ def train_pso():
     X_val_for_pso = X_train[n_tr_val:]
     y_val_for_pso = y_train[n_tr_val:]
 
-    # =========================
-    # OBJECTIVE FUNCTION (MSE)
-    # =========================
     def make_pso_obj(X_tr, y_tr, X_va, y_va, scaler_y):
         def obj_fn(particles):
             n_particles = particles.shape[0]
             costs = np.zeros(n_particles)
 
             for i, p in enumerate(particles):
-
                 units = int(np.round(p[0]))
                 lr = float(p[1])
                 batch = int(np.round(p[2]))
@@ -403,16 +422,20 @@ def train_pso():
                     yv_true_orig = scaler_y.inverse_transform(y_va).flatten()
 
                     costs[i] = mean_squared_error(yv_true_orig, yv_pred_orig)
+                    
+                    # Clear model
+                    del model
+                    K.clear_session()
+                    gc.collect()
 
                 except Exception as e:
                     print("PSO eval error:", e)
                     costs[i] = 1e12
-
-                K.clear_session()
+                    K.clear_session()
+                    gc.collect()
 
             return costs
         return obj_fn
-
 
     pso_obj = make_pso_obj(
         X_tr_for_pso, y_tr_for_pso,
@@ -420,9 +443,6 @@ def train_pso():
         scaler_y
     )
 
-    # =========================
-    # INIT OPTIMIZER
-    # =========================
     optimizer = GlobalBestPSO(
         n_particles=PSO_N_PARTICLES,
         dimensions=4,
@@ -437,11 +457,7 @@ def train_pso():
     history_gbest_cost = []
     history_gbest_pos = []
 
-    # =========================
-    # LOOP PSO MANUAL
-    # =========================
     for it in range(PSO_ITERS):
-
         costs = pso_obj(optimizer.swarm.position)
 
         mask = costs < optimizer.swarm.pbest_cost
@@ -455,7 +471,6 @@ def train_pso():
         history_gbest_cost.append(float(optimizer.swarm.best_cost))
         history_gbest_pos.append(optimizer.swarm.best_pos.copy())
 
-        # update velocity
         r1 = np.random.rand(*optimizer.swarm.position.shape)
         r2 = np.random.rand(*optimizer.swarm.position.shape)
 
@@ -465,34 +480,27 @@ def train_pso():
             + PSO_OPTIONS['c2'] * r2 * (optimizer.swarm.best_pos - optimizer.swarm.position)
         )
 
-        # update posisi
         optimizer.swarm.position += optimizer.swarm.velocity
         lb, ub = PSO_BOUNDS
         optimizer.swarm.position = np.clip(optimizer.swarm.position, lb, ub)
 
-    # =========================
-    # PARAMETER TERBAIK
-    # =========================
     best_pos = history_gbest_pos[-1]
     best_units = int(np.round(best_pos[0]))
     best_lr = float(best_pos[1])
     best_batch = int(np.round(best_pos[2]))
     best_dropout = float(best_pos[3])
 
-    # =========================
-    # TRAIN FINAL MODEL
-    # =========================
     set_seed(42)
     K.clear_session()
 
-    model_final = build_lstm_model(
+    model_final_pso = build_lstm_model(
         input_shape=(X_train.shape[1], X_train.shape[2]),
         units=best_units,
         dropout=best_dropout,
         lr=best_lr
     )
 
-    history_final = model_final.fit(
+    history_final = model_final_pso.fit(
         X_train, y_train,
         epochs=100,
         batch_size=best_batch,
@@ -500,67 +508,83 @@ def train_pso():
         verbose=0
     )
 
-    # =========================
-    # EVALUASI TEST
-    # =========================
-    y_pred_scaled = model_final.predict(X_test, verbose=0)
-
+    y_pred_scaled = model_final_pso.predict(X_test, verbose=0)
     y_pred = scaler_y.inverse_transform(y_pred_scaled).flatten()
     y_true = scaler_y.inverse_transform(y_test).flatten()
 
     pso_mape = mape(y_true, y_pred)
 
+    # Simpan model PSO untuk forecast, jangan dihapus
+    st.session_state.model_pso = model_final_pso
+    
     return (
-        model_final,
         history_final,
         pso_mape,
         y_pred,
         y_true,
         np.array(history_gbest_cost)
     )
-    
+
 # =========================================================
-# SESSION STATE (agar tidak retrain saat pindah tab)
+# SESSION STATE
 # =========================================================
 if "trained" not in st.session_state:
     st.session_state.trained = False
-    
+
 # =========================================================
 # BUTTON TRAIN MODEL
 # =========================================================
 st.sidebar.markdown("### Training Model")
 
 if st.sidebar.button("Run Training Model"):
-    with st.spinner("Training Baseline, GA, PSO"):
-        (st.session_state.model_base,
-         st.session_state.history_base,
+    with st.spinner("Training Baseline, GA, PSO..."):
+        progress_bar = st.progress(0)
+        
+        # BASELINE
+        progress_bar.progress(10)
+        st.info("Training Baseline...")
+        (st.session_state.history_base,
          st.session_state.base_mape,
          st.session_state.y_pred_base,
          st.session_state.y_true_base) = train_baseline()
-
-        (st.session_state.model_ga,
-         st.session_state.history_ga,
+        st.success("✓ Baseline selesai")
+        progress_bar.progress(35)
+        
+        # GA
+        progress_bar.progress(40)
+        st.info("Training GA...")
+        (st.session_state.history_ga,
          st.session_state.ga_mape,
          st.session_state.y_pred_ga,
          st.session_state.y_true_ga,
          st.session_state.gbest_ga) = train_ga()
-                
-        (st.session_state.model_pso,
-         st.session_state.history_pso,
+        st.success("✓ GA selesai")
+        progress_bar.progress(70)
+        
+        # PSO
+        progress_bar.progress(75)
+        st.info("Training PSO...")
+        (st.session_state.history_pso,
          st.session_state.pso_mape,
          st.session_state.y_pred_pso,
          st.session_state.y_true_pso,
          st.session_state.gbest_pso) = train_pso()
+        st.success("✓ PSO selesai")
+        progress_bar.progress(100)
 
         st.session_state.trained = True
-        st.success("Training selesai!")
-                
+        st.success("✅ Training semua model selesai!")
+        
+        # Final cleanup
+        gc.collect()
+        K.clear_session()
+
 # =============================
 # SECTION 1 : INFORMASI DATA
 # =============================
 if section == "Informasi Data":
     st.subheader("Grafik Harga Saham")
-    fig, ax = plt.subplots(figsize=(7,3))
+    fig, ax = plt.subplots(figsize=(7, 3))
     ax.plot(df["Date"], df["Close"])
     ax.set_title("Pergerakan Harga Saham")
     ax.set_xlabel("Date")
@@ -568,17 +592,16 @@ if section == "Informasi Data":
     show_plot(fig)
     
     st.subheader("Statistik Deskriptif")
-
-    left, center, right = st.columns([1,5,1])
+    left, center, right = st.columns([1, 5, 1])
     with center:
         st.dataframe(df["Close"].describe().to_frame())
-        
+
 # =============================
 # SECTION 2 : TRAINING & EVALUASI
 # =============================
 elif section == "Training & Evaluasi":
     if not st.session_state.trained:
-        st.warning("Klik 'Run Training Model' terlebih dahulu.")
+        st.warning("⚠️ Klik 'Run Training Model' terlebih dahulu.")
     else:
         history_base = st.session_state.history_base
         history_pso = st.session_state.history_pso
@@ -586,14 +609,11 @@ elif section == "Training & Evaluasi":
 
         st.subheader("Training vs Validation Loss")
         
-        # =====================================================
-        # VALIDATION LOSS (3 garis dalam 1 grafik)
-        # =====================================================
         col1, col2, col3 = st.columns(3)
 
         # BASELINE
         with col1:
-            fig1, ax1 = plt.subplots(figsize=(3,2))
+            fig1, ax1 = plt.subplots(figsize=(3, 2))
             ax1.plot(history_base.history['loss'], label='Train')
             ax1.plot(history_base.history['val_loss'], label='Val')
             ax1.set_title('Baseline LSTM')
@@ -602,7 +622,7 @@ elif section == "Training & Evaluasi":
         
         # GA
         with col2:
-            fig2, ax2 = plt.subplots(figsize=(3,2))
+            fig2, ax2 = plt.subplots(figsize=(3, 2))
             ax2.plot(history_ga.history['loss'], label='Train')
             ax2.plot(history_ga.history['val_loss'], label='Val')
             ax2.set_title('GA-LSTM')
@@ -611,19 +631,17 @@ elif section == "Training & Evaluasi":
     
         # PSO
         with col3:
-            fig3, ax3 = plt.subplots(figsize=(3,2))
+            fig3, ax3 = plt.subplots(figsize=(3, 2))
             ax3.plot(history_pso.history['loss'], label='Train')
             ax3.plot(history_pso.history['val_loss'], label='Val')
             ax3.set_title('PSO-LSTM')
             ax3.legend(fontsize=8)
             st.pyplot(fig3)
         
-        # =====================================================
-        # ACTUAL VS PREDICTED (3 MODEL)
-        # =====================================================
+        # ACTUAL VS PREDICTED
         st.subheader("Actual vs Predicted Comparison")
 
-        fig4, ax4 = plt.subplots(figsize=(6,3))
+        fig4, ax4 = plt.subplots(figsize=(6, 3))
         ax4.plot(st.session_state.y_true_base, label="Actual", linewidth=2)
         ax4.plot(st.session_state.y_pred_base, label="Baseline")
         ax4.plot(st.session_state.y_pred_pso, label="PSO")
@@ -633,66 +651,70 @@ elif section == "Training & Evaluasi":
         
         show_plot(fig4)
 
-        
-        # =====================================================
         # MAPE TABLE
-        # =====================================================
         st.subheader("MAPE Comparison")
 
         results = pd.DataFrame({
             "Model": ["Baseline", "PSO", "GA"],
-            "MAPE": [
-                st.session_state.base_mape,
-                st.session_state.pso_mape,
-                st.session_state.ga_mape
+            "MAPE (%)": [
+                f"{st.session_state.base_mape:.4f}",
+                f"{st.session_state.pso_mape:.4f}",
+                f"{st.session_state.ga_mape:.4f}"
             ]
         })
 
-        st.dataframe(results)
-    
+        st.dataframe(results, use_container_width=True)
+        
+        # Best model info
+        mape_values = {
+            "Baseline": st.session_state.base_mape,
+            "PSO": st.session_state.pso_mape,
+            "GA": st.session_state.ga_mape
+        }
+        best_model = min(mape_values, key=mape_values.get)
+        st.success(f"🏆 Model Terbaik: **{best_model}** dengan MAPE = {mape_values[best_model]:.4f}%")
+
 # =========================================================
-# SECTION 3 : HASIL FORECAST
+# SECTION 3 : FORECAST
 # =========================================================
 elif section == "Forecast":
     if not st.session_state.trained:
-        st.warning("Klik Run Training Model terlebih dahulu.")
+        st.warning("⚠️ Klik 'Run Training Model' terlebih dahulu.")
     else:
         future_days = st.slider("Forecast (hari)", 5, 30, 7)
 
         last_window = X_test[-1].copy()
         future_preds = []
 
-        model = st.session_state.model_pso  
+        model = st.session_state.model_pso
         
         for _ in range(future_days):
-            pred = model.predict(last_window.reshape(1,1,1), verbose=0)
-            future_preds.append(pred[0,0])
-            last_window = pred.reshape(1,1,1)
+            pred = model.predict(last_window.reshape(1, 1, 1), verbose=0)
+            future_preds.append(pred[0, 0])
+            last_window = pred.reshape(1, 1, 1)
 
-        future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1,1)).flatten()
-        # ===============================
+        future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1, 1)).flatten()
+        
         # BUAT TANGGAL MASA DEPAN
-        # ===============================
         future_dates = pd.bdate_range(
             start=df["Date"].iloc[-1],
             periods=future_days + 1
         )[1:]
 
-        # ===============================
-        # Grafik forecast
-        # ===============================
-        st.subheader("Forecast Harga Saham")
+        # GRAFIK FORECAST
+        st.subheader("Forecast Harga Saham (PSO-LSTM)")
 
-        fig, ax = plt.subplots(figsize=(9,3))
+        fig, ax = plt.subplots(figsize=(9, 3))
 
         # data historis
         ax.plot(df["Date"], df["Close"], label="Data Historis", linewidth=2)
         
-        # sambungan garis terakhir (optional)
+        # sambungan garis terakhir
         ax.plot(
             [df["Date"].iloc[-1], future_dates[0]],
             [df["Close"].iloc[-1], future_preds[0]],
-            linestyle="--"
+            linestyle="--",
+            color="orange"
         )
         
         # forecast
@@ -701,27 +723,27 @@ elif section == "Forecast":
             future_preds,
             label="Forecast",
             linestyle="--",
-            marker="o"
+            marker="o",
+            color="red"
         )
         
         ax.legend()
-        ax.set_title("Pergerakan Harga Saham + Forecast")
+        ax.set_title("Pergerakan Harga Saham + Forecast (PSO-LSTM)")
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Close Price")
         
         st.pyplot(fig)
 
-        # ===============================
-        # tabel forecast
-        # ===============================
-        future_dates = pd.date_range(
+        # TABEL FORECAST
+        future_dates_table = pd.date_range(
             start=df["Date"].iloc[-1] + timedelta(days=1),
             periods=future_days
         )
 
         forecast_df = pd.DataFrame({
-            "Date": future_dates,
-            "Forecast": future_preds
+            "Date": future_dates_table,
+            "Forecast Price": [f"Rp {price:,.2f}" for price in future_preds]
         })
 
-        st.dataframe(forecast_df)
-
-
+        st.subheader("Tabel Forecast")
+        st.dataframe(forecast_df, use_container_width=True)
