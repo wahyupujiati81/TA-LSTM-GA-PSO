@@ -679,11 +679,15 @@ elif section == "Forecast":
 
         last_window = X_test[-1].copy()
         future_preds = []
-
-        results = st.session_state.results
+        
+        results = st.session_state.get("results", [])
 
         if len(results) == 0:
             st.warning("Model belum ditraining.")
+            st.stop()
+        
+        if "model" not in results[0]:
+            st.error("Model tidak tersimpan di results.")
             st.stop()
         
         model = results[0]["model"]
