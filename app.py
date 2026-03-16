@@ -534,6 +534,9 @@ if "trained" not in st.session_state:
 
 if "model" not in st.session_state:
     st.session_state.model = None
+
+if "results" not in st.session_state:
+    st.session_state.results = []
     
 # =========================================================
 # BUTTON TRAIN MODEL
@@ -618,7 +621,7 @@ elif section == "Training & Evaluasi":
 
     else:
 
-        results = st.session_state.results
+        results = st.session_state.get("results", [])
 
         # =========================
         # LOSS CURVE
