@@ -597,16 +597,15 @@ if st.sidebar.button("Run Training Model"):
 if section == "Informasi Data":
     st.subheader("Grafik Harga Saham")
     fig, ax = plt.subplots(figsize=(7,3))
-    ax.plot(df["Date"], df["Close"])
+    ax.plot(df["Date"], df["Close"], marker="o")
     ax.set_title("Pergerakan Harga Saham")
     ax.set_xlabel("Date")
     ax.set_ylabel("Close")
-    show_plot(fig)
 
     # format tanggal
     ax.xaxis.set_major_locator(mdates.AutoDateLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))  
-    plt.xticks(rotation=45)    
+    ax.tick_params(axis="x", rotation=45)   
     fig.tight_layout()    
     show_plot(fig)
     
