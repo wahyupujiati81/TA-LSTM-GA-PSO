@@ -556,7 +556,7 @@ if st.sidebar.button("Run Training Model"):
                 "MAPE": mape_value,
                 "y_pred": y_pred,
                 "y_true": y_true,
-                "history": history
+                "history": history,
                 "model": model
             })
 
@@ -568,7 +568,7 @@ if st.sidebar.button("Run Training Model"):
                 "MAPE": mape_value,
                 "y_pred": y_pred,
                 "y_true": y_true,
-                "history": history
+                "history": history,
                 "model": model
             })
 
@@ -580,7 +580,7 @@ if st.sidebar.button("Run Training Model"):
                 "MAPE": mape_value,
                 "y_pred": y_pred,
                 "y_true": y_true,
-                "history": history
+                "history": history,
                 "model": model
             })
 
