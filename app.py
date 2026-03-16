@@ -682,13 +682,27 @@ elif section == "Forecast":
         
         results = st.session_state.get("results", [])
 
-        if len(results) == 0:
-            st.warning("Belum ada model yang ditraining.")
+        if not results:
+            st.warning("Silakan training model terlebih dahulu.")
             st.stop()
         
         model = results[0]["model"]
-
-        future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1,1)).flatten()
+        
+        last_window = X_test[-1].copy()
+        future_preds = []
+        
+        for _ in range(future_days):
+        
+            pred = model.predict(last_window.reshape(1, window, 1), verbose=0)
+        
+            future_preds.append(pred[0,0])
+        
+            last_window = pred.reshape(1, window, 1)
+        
+        future_preds = scaler_y.inverse_transform(
+            np.array(future_preds).reshape(-1,1)
+        ).flatten()
+        
         # ===============================
         # BUAT TANGGAL MASA DEPAN
         # ===============================
