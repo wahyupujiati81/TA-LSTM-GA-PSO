@@ -65,10 +65,11 @@ section = st.sidebar.radio(
     ["Informasi Data", "Training & Evaluasi", "Forecast"]
 )
 
-model_option = st.sidebar.selectbox(
-    "Pilih Model Training",
-    ["Baseline LSTM", "LSTM + PSO", "LSTM + GA"]
-)
+st.sidebar.subheader("Pilih Model")
+
+use_lstm = st.sidebar.checkbox("Baseline LSTM")
+use_pso = st.sidebar.checkbox("LSTM + PSO")
+use_ga = st.sidebar.checkbox("LSTM + GA")
 
 # =============================
 # LOAD DATA
@@ -541,55 +542,61 @@ st.sidebar.markdown("### Training Model")
 
 if st.sidebar.button("Run Training Model"):
 
+    results = []
+
+    with st.spinner("Training models ..."):
+
     with st.spinner(f"Training {model_option} ..."):
 
-        # =============================
+        # ======================
         # BASELINE LSTM
-        # =============================
-        if model_option == "Baseline LSTM":
+        # ======================
+        if use_lstm:
 
-            (model,
-             history,
-             mape_value,
-             y_pred,
-             y_true) = train_baseline()
+            model, history, mape_value, y_pred, y_true = train_baseline()
 
-        # =============================
-        # LSTM + GA
-        # =============================
-        elif model_option == "LSTM + GA":
+            results.append({
+                "Model": "Baseline LSTM",
+                "MAPE": mape_value,
+                "y_pred": y_pred,
+                "y_true": y_true,
+                "history": history
+            })
 
-            (model,
-             history,
-             mape_value,
-             y_pred,
-             y_true,
-             gbest) = train_ga()
-
-        # =============================
+        # ======================
         # LSTM + PSO
-        # =============================
-        elif model_option == "LSTM + PSO":
+        # ======================
+        if use_pso:
 
-            (model,
-             history,
-             mape_value,
-             y_pred,
-             y_true,
-             gbest) = train_pso()
+            model, history, mape_value, y_pred, y_true, gbest = train_pso()
 
-        # =============================
-        # SIMPAN KE SESSION STATE
-        # =============================
-        st.session_state.model = model
-        st.session_state.history = history
-        st.session_state.mape = mape_value
-        st.session_state.y_pred = y_pred
-        st.session_state.y_true = y_true
+            results.append({
+                "Model": "LSTM + PSO",
+                "MAPE": mape_value,
+                "y_pred": y_pred,
+                "y_true": y_true,
+                "history": history
+            })
 
+        # ======================
+        # LSTM + GA
+        # ======================
+        if use_ga:
+
+            model, history, mape_value, y_pred, y_true, gbest = train_ga()
+
+            results.append({
+                "Model": "LSTM + GA",
+                "MAPE": mape_value,
+                "y_pred": y_pred,
+                "y_true": y_true,
+                "history": history
+            })
+
+        st.session_state.results = results
         st.session_state.trained = True
 
-        st.success(f"Training {model_option} selesai!")
+        st.success("Training selesai!")
                 
 # =============================
 # SECTION 1 : INFORMASI DATA
@@ -625,46 +632,49 @@ elif section == "Training & Evaluasi":
 
     else:
 
-        history = st.session_state.history
+        results = st.session_state.results
 
+        # =========================
+        # LOSS CURVE
+        # =========================
         st.subheader("Training vs Validation Loss")
 
-        fig1, ax1 = plt.subplots(figsize=(6,3))
+        fig, ax = plt.subplots(figsize=(6,3))
 
-        ax1.plot(history.history['loss'], label='Train')
-        ax1.plot(history.history['val_loss'], label='Validation')
+        for r in results:
+            ax.plot(r["history"].history["loss"], label=f'{r["Model"]} Train')
+            ax.plot(r["history"].history["val_loss"], linestyle="--", label=f'{r["Model"]} Val')
 
-        ax1.set_title("Training vs Validation Loss")
-        ax1.legend()
+        ax.legend()
+        show_plot(fig)
 
-        show_plot(fig1)
-
-        # =============================
+        # =========================
         # ACTUAL VS PREDICTED
-        # =============================
+        # =========================
         st.subheader("Actual vs Predicted")
 
-        fig2, ax2 = plt.subplots(figsize=(6,3))
+        fig, ax = plt.subplots(figsize=(6,3))
 
-        ax2.plot(st.session_state.y_true, label="Actual", linewidth=2)
-        ax2.plot(st.session_state.y_pred, label="Predicted")
+        ax.plot(results[0]["y_true"], label="Actual", linewidth=2)
 
-        ax2.legend()
-        ax2.set_title("Actual vs Predicted")
+        for r in results:
+            ax.plot(r["y_pred"], label=r["Model"])
 
-        show_plot(fig2)
+        ax.legend()
 
-        # =============================
-        # MAPE TABLE
-        # =============================
-        st.subheader("MAPE")
+        show_plot(fig)
 
-        results = pd.DataFrame({
-            "Model": [model_option],
-            "MAPE": [st.session_state.mape]
+        # =========================
+        # TABEL MAPE
+        # =========================
+        st.subheader("Perbandingan MAPE")
+
+        mape_table = pd.DataFrame({
+            "Model": [r["Model"] for r in results],
+            "MAPE": [r["MAPE"] for r in results]
         })
 
-        st.dataframe(results)
+        st.dataframe(mape_table)
                 
 # =========================================================
 # SECTION 3 : HASIL FORECAST
