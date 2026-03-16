@@ -539,20 +539,13 @@ if "model" not in st.session_state:
 # BUTTON TRAIN MODEL
 # =========================================================
 st.sidebar.markdown("### Training Model")
-
 if st.sidebar.button("Run Training Model"):
-
-    results = []
 
     with st.spinner("Training models ..."):
 
-    with st.spinner(f"Training {model_option} ..."):
+        results = []
 
-        # ======================
-        # BASELINE LSTM
-        # ======================
         if use_lstm:
-
             model, history, mape_value, y_pred, y_true = train_baseline()
 
             results.append({
@@ -563,11 +556,7 @@ if st.sidebar.button("Run Training Model"):
                 "history": history
             })
 
-        # ======================
-        # LSTM + PSO
-        # ======================
         if use_pso:
-
             model, history, mape_value, y_pred, y_true, gbest = train_pso()
 
             results.append({
@@ -578,11 +567,7 @@ if st.sidebar.button("Run Training Model"):
                 "history": history
             })
 
-        # ======================
-        # LSTM + GA
-        # ======================
         if use_ga:
-
             model, history, mape_value, y_pred, y_true, gbest = train_ga()
 
             results.append({
@@ -597,6 +582,7 @@ if st.sidebar.button("Run Training Model"):
         st.session_state.trained = True
 
         st.success("Training selesai!")
+
                 
 # =============================
 # SECTION 1 : INFORMASI DATA
