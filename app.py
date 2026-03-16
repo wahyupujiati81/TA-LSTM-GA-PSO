@@ -683,11 +683,7 @@ elif section == "Forecast":
         results = st.session_state.get("results", [])
 
         if len(results) == 0:
-            st.warning("Model belum ditraining.")
-            st.stop()
-        
-        if "model" not in results[0]:
-            st.error("Model tidak tersimpan di results.")
+            st.warning("Belum ada model yang ditraining.")
             st.stop()
         
         model = results[0]["model"]
