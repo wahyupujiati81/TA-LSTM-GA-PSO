@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import tensorflow as tf
 import random
 from sklearn.preprocessing import MinMaxScaler
@@ -601,6 +602,13 @@ if section == "Informasi Data":
     ax.set_xlabel("Date")
     ax.set_ylabel("Close")
     show_plot(fig)
+
+    # format tanggal
+    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))  
+    plt.xticks(rotation=45)    
+    fig.tight_layout()    
+    show_plot(fig)
     
     st.subheader("Statistik Deskriptif")
 
@@ -658,23 +666,7 @@ elif section == "Training & Evaluasi":
         })
 
         st.dataframe(results)
-        
-        # =====================================================
-        # MAPE TABLE
-        # =====================================================
-        st.subheader("MAPE Comparison")
-
-        results = pd.DataFrame({
-            "Model": ["Baseline", "PSO", "GA"],
-            "MAPE": [
-                st.session_state.base_mape,
-                st.session_state.pso_mape,
-                st.session_state.ga_mape
-            ]
-        })
-
-        st.dataframe(results)
-    
+                
 # =========================================================
 # SECTION 3 : HASIL FORECAST
 # =========================================================
@@ -702,35 +694,65 @@ elif section == "Forecast":
             start=df["Date"].iloc[-1],
             periods=future_days + 1
         )[1:]
-
+       
         # ===============================
         # Grafik forecast
         # ===============================
         st.subheader("Forecast Harga Saham")
-
-        fig, ax = plt.subplots(figsize=(9,3))
-
-        # data historis
-        ax.plot(df["Date"], df["Close"], label="Data Historis", linewidth=2)
         
-        # sambungan garis terakhir (optional)
+        fig, ax = plt.subplots(figsize=(9,3))
+        
+        # ===============================
+        # Data historis
+        # ===============================
+        ax.plot(
+            df["Date"],
+            df["Close"],
+            label="Data Historis",
+            linewidth=2,
+            color="blue"
+        )
+        
+        # ===============================
+        # Sambungan garis terakhir
+        # ===============================
         ax.plot(
             [df["Date"].iloc[-1], future_dates[0]],
             [df["Close"].iloc[-1], future_preds[0]],
-            linestyle="--"
+            linestyle="--",
+            color="gray"
         )
         
-        # forecast
+        # ===============================
+        # Forecast
+        # ===============================
         ax.plot(
             future_dates,
             future_preds,
             label="Forecast",
             linestyle="--",
-            marker="o"
+            marker="o",
+            color="red"
         )
         
-        ax.legend()
+        # ===============================
+        # Format tanggal
+        # ===============================
+        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        
+        plt.xticks(rotation=45)
+        
+        # ===============================
+        # Label
+        # ===============================
+        ax.set_xlabel("Tanggal")
+        ax.set_ylabel("Harga Close")
         ax.set_title("Pergerakan Harga Saham + Forecast")
+        
+        ax.legend()
+        
+        fig.tight_layout()
         
         st.pyplot(fig)
 
