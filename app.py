@@ -557,6 +557,7 @@ if st.sidebar.button("Run Training Model"):
                 "y_pred": y_pred,
                 "y_true": y_true,
                 "history": history
+                "model": model
             })
 
         if use_pso:
@@ -568,6 +569,7 @@ if st.sidebar.button("Run Training Model"):
                 "y_pred": y_pred,
                 "y_true": y_true,
                 "history": history
+                "model": model
             })
 
         if use_ga:
@@ -579,6 +581,7 @@ if st.sidebar.button("Run Training Model"):
                 "y_pred": y_pred,
                 "y_true": y_true,
                 "history": history
+                "model": model
             })
 
         st.session_state.results = results
@@ -677,12 +680,13 @@ elif section == "Forecast":
         last_window = X_test[-1].copy()
         future_preds = []
 
-        model = st.session_state.model
+        results = st.session_state.results
+
+        if len(results) == 0:
+            st.warning("Model belum ditraining.")
+            st.stop()
         
-        for _ in range(future_days):
-            pred = model.predict(last_window.reshape(1,1,1), verbose=0)
-            future_preds.append(pred[0,0])
-            last_window = pred.reshape(1,1,1)
+        model = results[0]["model"]
 
         future_preds = scaler_y.inverse_transform(np.array(future_preds).reshape(-1,1)).flatten()
         # ===============================
