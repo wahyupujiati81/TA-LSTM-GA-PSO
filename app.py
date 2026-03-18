@@ -385,7 +385,7 @@ def train_pso():
                 lr = float(p[1])
                 batch = int(np.round(p[2]))
                 dropout = float(p[3])
-                epochs_fixed = 5
+                epochs_fixed = 10
 
                 try:
                     set_seed(42)
