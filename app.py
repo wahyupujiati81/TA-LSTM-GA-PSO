@@ -595,17 +595,37 @@ if st.sidebar.button("Run Training Model"):
 # =============================
 if section == "Informasi Data":
     st.subheader("Grafik Harga Saham")
+    # Pastikan data rapi
+    df_plot = df.copy()
+    df_plot = df_plot.sort_values("Date")
+    df_plot = df_plot.drop_duplicates(subset="Date")
+    
     fig, ax = plt.subplots(figsize=(7,3))
-    ax.plot(df["Date"], df["Close"], marker="o")
+    
+    ax.plot(
+        df_plot["Date"],
+        df_plot["Close"],
+        marker="o",
+        linewidth=1.5
+    )
+    
     ax.set_title("Pergerakan Harga Saham")
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Close")
-
-    # format tanggal
-    ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))  
-    ax.tick_params(axis="x", rotation=45)   
-    fig.tight_layout()    
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Harga Close")
+    
+    # Format tanggal biar tidak berantakan
+    locator = mdates.AutoDateLocator()
+    formatter = mdates.ConciseDateFormatter(locator)
+    
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(formatter)
+    
+    plt.xticks(rotation=45)
+    
+    # Tambahan biar lebih enak dibaca
+    ax.grid(True, alpha=0.3)
+    
+    fig.tight_layout()
     show_plot(fig)
     
     st.subheader("Statistik Deskriptif")
